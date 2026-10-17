@@ -1,0 +1,315 @@
+%YAML 1.2
+---
+# See http://www.sublimetext.com/docs/syntax.html
+name: Pyx
+scope: source.pyx
+version: 2
+file_extensions:
+  - pyx
+extends: Packages/Python/Python.sublime-syntax
+
+variables:
+  ident: '[^\W\d][\w-]*'
+  ident_start_char: '[^\W\d]'
+  space: '\t\n\f '
+
+contexts:
+  or-pop:
+    - match: '(?=\S)'
+      pop: true
+
+  pop:
+    - match: ''
+      pop: true
+
+  pop2:
+    - match: ''
+      pop: 2
+
+  # Extension for python expressions
+
+  expressions-common:
+    - meta_prepend: true
+    - include: pyx
+
+  # Comment
+
+  comment:
+    - match: (<!--)
+      scope: punctuation.definition.comment.begin.pyx
+      push: comment-body
+
+  comment-body:
+    - meta_scope: comment.block.pyx
+    - match: (-->)
+      scope: punctuation.definition.comment.end.pyx
+      pop: true
+
+  # Children of fragment/element
+
+  children-common:
+    - include: comment
+    - include: fragment
+    - include: element
+    - include: spread-expression
+    - include: expression
+    - include: entities
+
+  # Pyx
+
+  pyx:
+    - include: element
+    - include: fragment
+
+  # Fragment
+
+  fragment:
+    - include: tag-fragment
+  
+  tag-fragment:
+    - match: '(<)(>)'
+      scope: meta.tag.pyx
+      captures:
+        1: punctuation.definition.tag.begin.pyx
+        2: punctuation.definition.tag.end.pyx
+      push: fragment-body
+
+  invalid-element-end:
+    - match: '</{{ident_start_char}}.*>'
+      scope: invalid.illegal
+
+  tag-fragment-end:
+    - match: '(<)(/>)'
+      scope: meta.tag.pyx
+      captures:
+        1: punctuation.definition.tag.begin.pyx
+        2: punctuation.definition.tag.end.pyx
+      pop: true
+
+  fragment-body:
+    - include: invalid-element-end
+    - include: tag-fragment-end
+    - include: children-common
+
+  # Element
+
+  element:
+    - include: tag-element
+
+  tag-element:
+    - match: '<(?={{ident_start_char}})'
+      scope: punctuation.definition.tag.begin.pyx
+      push:
+        - tag-element-content
+        - tag-name
+
+  tag-element-content:
+    - meta_scope: meta.tag.pyx
+    - match: '/>'
+      scope: punctuation.definition.tag.end.pyx
+      pop: true
+    - match: '>'
+      scope: punctuation.definition.tag.end.pyx
+      pop: true
+      push: element-body
+    - include: spread-attribute
+    - include: attribute
+
+  tag-element-end-end:
+    - match: '>'
+      scope: punctuation.definition.tag.end.pyx
+      pop: true
+
+  tag-element-end-content:
+    - meta_scope: meta.tag.pyx
+    - match: '</'
+      scope: punctuation.definition.tag.begin.pyx
+      push:
+        - pop2
+        - tag-element-end-end
+        - tag-name
+
+  tag-element-end:
+    - match: '(?=</)'
+      push:
+        - pop2 
+        - tag-element-end-content
+
+  invalid-fragment-end:
+    - match: '</>'
+      scope: invalid.illegal
+
+  element-body:
+    - include: invalid-fragment-end
+    - include: tag-element-end
+    - include: children-common
+
+  tag-name:
+    - match: '({{ident}})(:)({{ident}})'
+      captures:
+        1: entity.name.tag
+        2: punctuation.separator
+        3: entity.name.tag
+      pop: true
+    - match: '({{ident}})(\.)'
+      set: tag-name-member-expression-end
+      captures:
+        1: entity.name.tag
+        2: punctuation.separator
+    - match: '{{ident}}'
+      scope: entity.name.tag
+      pop: true
+
+  tag-name-member-expression-end:
+    - match: '({{ident}})(\.)'
+      captures:
+        1: entity.name.tag
+        2: pucntuation.separator
+    - match: '{{ident}}'
+      scope: entity.name.tag
+      pop: true
+
+  # Attributes
+
+  spread-attribute:
+    - include: spread-expression
+
+  attribute:
+    - match: '(?={{ident_start_char}})'
+      push:
+        - attr-initializer
+        - attr-name
+
+  attr-initializer:
+    - match: '='
+      scope: punctuation.separator.key-value
+      set: attr-value
+    - include: or-pop
+
+  attr-value:
+    - include: attr-value-expression
+    - include: attr-value-string
+    - match: '(?=[^{{space}}=>])'
+      set: attr-value-unquoted
+    - include: or-pop
+
+  attr-value-expression:
+    - include: expression
+
+  attr-value-unquoted-invalid:
+    - match: '["''`<]'
+      scope: invalid.illegal
+
+  attr-value-unquoted-end:
+    - match: '(?=[{{space}}]|/?>)'
+      pop: true
+
+  attr-value-unquoted-content:
+    - include: entities
+
+  attr-value-unquoted:
+    - meta_content_scope: string.unquoted
+    - include: attr-value-unquoted-end
+    - include: attr-value-unquoted-content
+    - include: attr-value-unquoted-invalid
+
+  attr-value-string:
+    - include: string
+
+  attr-name:
+    - match: '({{ident}})(:)({{ident}})'
+      captures:
+        1: entity.other.attribute-name
+        2: punctuation.separator
+        3: entity.other.attribute-name
+      pop: true
+    - match: '{{ident}}'
+      scope: entity.other.attribute-name
+      pop: true
+
+  # Python expressions
+
+  spread-expression:
+    - match: '({)\s*(\.\.\.)'
+      captures:
+        1: punctuation.section.block.begin
+        2: constant.language
+      push: spread-expression-body
+
+  spread-expression-body:
+    - match: '}'
+      scope: punctuation.section.block.end
+      pop: true
+    - include: expression-as-a-statement
+
+  expression:
+    - match: '{'
+      scope: punctuation.section.block.begin
+      push: expression-body
+
+  expression-body:
+    - match: '}'
+      scope: punctuation.section.block.end
+      pop: true
+    - include: expression-as-a-statement
+
+  # Entities
+
+  entities:
+    - match: (&#[xX])[01]?\h{1,5}(;)
+      scope: constant.character.entity.hexadecimal.html
+      captures:
+        1: punctuation.definition.entity.html
+        2: punctuation.terminator.entity.html
+    - match: (&#)[0-9]{1,7}(;)
+      scope: constant.character.entity.decimal.html
+      captures:
+        1: punctuation.definition.entity.html
+        2: punctuation.terminator.entity.html
+    - match: (&)[a-zA-Z0-9]+(;)
+      scope: constant.character.entity.named.html
+      captures:
+        1: punctuation.definition.entity.html
+        2: punctuation.terminator.entity.html
+
+  # Strings
+
+  string-common-content:
+    - include: entities
+
+  string-quoted-content:
+    - include: string-common-content
+
+  string-dquote-end:
+    - match: '"'
+      scope: punctuation.definition.string.end
+      pop: true
+
+  string-dquote-body:
+    - meta_content_scope: string.quoted.double
+    - include: string-dquote-end
+    - include: string-quoted-content
+
+  string-dquote:
+    - match: '"'
+      scope: punctuation.definition.string.begin
+      push: string-dquote-body
+
+  string-squote-end:
+    - match: "'"
+      scope: punctuation.definition.string.end
+      pop: true
+
+  string-squote-body:
+    - meta_content_scope: string.quoted.single
+    - include: string-squote-end
+    - include: string-quoted-content
+
+  string-squote:
+    - match: "'"
+      scope: punctuation.definition.string.begin
+      push: string-squote-body
+
+  string:
+    - include: string-squote
+    - include: string-dquote
